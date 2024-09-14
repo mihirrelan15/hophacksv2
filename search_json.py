@@ -1,4 +1,9 @@
 import json
+import requests
+
+# Hugging Face API URL and headers
+API_URL = "https://api-inference.huggingface.co/models/finiteautomata/bertweet-base-sentiment-analysis"
+headers = {"Authorization": "Bearer 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"}
 
 # Function to load the JSON file
 def load_json(filename):
@@ -7,22 +12,31 @@ def load_json(filename):
 
 # Search function to return abstracts that contain the keyword
 def search_abstracts(data, keyword):
-    # Convert the keyword to lowercase to make the search case-insensitive
     keyword_lower = keyword.lower()
-    
-    # List to store matching papers
     matching_papers = []
 
     # Iterate through each paper and check if the keyword is in the abstract
     for paper in data:
-        # Check if the keyword is in the abstract (case-insensitive)
-        if keyword_lower in paper['abstract'].lower():
+        abstract = paper['abstract']
+        # Check if the keyword is in the abstract
+        if keyword_lower in abstract.lower():
             matching_papers.append(paper)
 
-    # Return the matching papers
     return matching_papers
 
-# Function to display the search results
+# Function to extract sentences containing the keyword
+def extract_sentences_with_keyword(abstract, keyword):
+    sentences = abstract.split('.')
+    keyword_lower = keyword.lower()
+    key_sentences = [sentence.strip() for sentence in sentences if keyword_lower in sentence.lower()]
+    return key_sentences
+
+# Function to call the Hugging Face model for sentiment analysis
+def query_huggingface(text):
+    response = requests.post(API_URL, headers=headers, json={"inputs": text})
+    return response.json()
+
+# Function to display the search results and run sentiment analysis on key sentences
 def display_results(papers, keyword):
     if papers:
         print(f"\nFound {len(papers)} papers with the keyword '{keyword}':\n")
@@ -30,7 +44,20 @@ def display_results(papers, keyword):
             print(f"{i}. Title: {paper['title']}")
             print(f"   Authors: {', '.join(paper['authors'])}")
             print(f"   Year: {paper['year']}")
-            print(f"   Abstract: {paper['abstract']}\n")
+
+            # Extract key sentences from the abstract
+            key_sentences = extract_sentences_with_keyword(paper['abstract'], keyword)
+
+            if key_sentences:
+                print(f"   Sentences containing '{keyword}':")
+                for sentence in key_sentences:
+                    print(f"      {sentence}")
+                    
+                    # Run sentiment analysis on each key sentence
+                    sentiment_output = query_huggingface(sentence)
+                    print(f"      Sentiment: {sentiment_output}\n")
+            else:
+                print(f"   No key sentences found containing '{keyword}'.\n")
     else:
         print(f"No papers found with the keyword '{keyword}'.")
 
@@ -48,5 +75,5 @@ if __name__ == "__main__":
     # Search for abstracts with the keyword
     matching_papers = search_abstracts(data, keyword)
 
-    # Display the results
+    # Display the results with sentiment analysis on key sentences
     display_results(matching_papers, keyword)
